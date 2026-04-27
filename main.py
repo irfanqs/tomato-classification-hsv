@@ -1,16 +1,10 @@
 import cv2
 import numpy as np
-import requests
-import matplotlib.pyplot as plt
 
 # ==== CONFIG ====
-IMAGE_PATH = None       # e.g. "tomato.jpg"
-IMAGE_URL  = None       # e.g. "https://example.com/tomato.jpg"
-
-# ==== ROI ====
-ROI_SIZE = 700
-USE_CENTER_ROI = False
-ROI_X0, ROI_Y0 = 162, 418
+CAMERA_INDEX   = 0      # ganti ke 1, 2, dst. jika kamera eksternal
+ROI_SIZE       = 300    # ukuran kotak ROI (pixel)
+USE_CENTER_ROI = True   # True = ROI di tengah frame
 
 # ==== HSV ranges ====
 GREEN_LO  = np.array([25,  30,  40]);  GREEN_HI  = np.array([95,  255, 255])
@@ -18,26 +12,13 @@ YELLOW_LO = np.array([12,  60,  60]);  YELLOW_HI = np.array([35,  255, 255])
 RED1_LO   = np.array([0,   70,  50]);  RED1_HI   = np.array([10,  255, 255])
 RED2_LO   = np.array([170, 70,  50]);  RED2_HI   = np.array([180, 255, 255])
 
-
-def load_bgr(path=None, url=None):
-    if (path is None) == (url is None):
-        raise ValueError("Set salah satu: IMAGE_PATH atau IMAGE_URL")
-    if path:
-        img = cv2.imread(path)
-        if img is None:
-            raise ValueError(f"Gagal baca: {path}")
-        return img
-    r = requests.get(url, timeout=20)
-    r.raise_for_status()
-    data = np.frombuffer(r.content, dtype=np.uint8)
-    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
-    if img is None:
-        raise ValueError("Gagal decode URL image")
-    return img
-
-
-def bgr2rgb(x):
-    return cv2.cvtColor(x, cv2.COLOR_BGR2RGB)
+# warna kotak & teks per label
+LABEL_COLOR = {
+    "RIPE (MERAH)"           : (0,   0,   255),
+    "SEMI-RIPE (KUNING/ORANYE)": (0, 200, 255),
+    "UNRIPE (HIJAU)"         : (0,   200,  0),
+    "NONE"                   : (180, 180, 180),
+}
 
 
 def classify_roi(hsv_roi, s_min=35, v_min=40):
@@ -46,7 +27,7 @@ def classify_roi(hsv_roi, s_min=35, v_min=40):
     valid = (s >= s_min) & (v >= v_min)
     valid_area = int(np.count_nonzero(valid))
     if valid_area < 500:
-        return "NONE", 0.0, 0.0, 0.0, valid.astype(np.uint8) * 255
+        return "NONE", 0.0, 0.0, 0.0
 
     red    = (cv2.inRange(hsv_roi, RED1_LO, RED1_HI) | cv2.inRange(hsv_roi, RED2_LO, RED2_HI)).astype(bool)
     green  = cv2.inRange(hsv_roi, GREEN_LO,  GREEN_HI).astype(bool)
@@ -63,47 +44,71 @@ def classify_roi(hsv_roi, s_min=35, v_min=40):
     else:
         label = "RIPE (MERAH)"
 
-    return label, r_ratio, g_ratio, y_ratio, (valid.astype(np.uint8) * 255)
+    return label, r_ratio, g_ratio, y_ratio
+
+
+def draw_ui(frame, x0, y0, roi_size, label, r, g, y):
+    color = LABEL_COLOR.get(label, (255, 255, 255))
+
+    # kotak ROI
+    cv2.rectangle(frame, (x0, y0), (x0 + roi_size, y0 + roi_size), color, 3)
+
+    # label di atas kotak
+    text = f"{label}"
+    (tw, th), bl = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.75, 2)
+    cv2.rectangle(frame, (x0, y0 - th - bl - 8), (x0 + tw + 8, y0), color, -1)
+    cv2.putText(frame, text, (x0 + 4, y0 - bl - 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2, cv2.LINE_AA)
+
+    # rasio di bawah kotak
+    stats = f"R:{r:.2f}  G:{g:.2f}  Y:{y:.2f}"
+    cv2.putText(frame, stats, (x0, y0 + roi_size + 24),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.65, color, 2, cv2.LINE_AA)
+
+    # panduan
+    cv2.putText(frame, "Tekan 'q' untuk keluar",
+                (10, frame.shape[0] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1, cv2.LINE_AA)
 
 
 def main():
-    bgr = load_bgr(IMAGE_PATH, IMAGE_URL)
-    H, W = bgr.shape[:2]
-    roi_size = min(ROI_SIZE, H, W)
+    cap = cv2.VideoCapture(CAMERA_INDEX)
+    if not cap.isOpened():
+        raise RuntimeError(f"Tidak dapat membuka kamera index={CAMERA_INDEX}")
 
-    if USE_CENTER_ROI:
-        x0 = (W - roi_size) // 2
-        y0 = (H - roi_size) // 2
-    else:
-        x0, y0 = ROI_X0, ROI_Y0
-        x0 = max(0, min(W - roi_size, x0))
-        y0 = max(0, min(H - roi_size, y0))
+    print("Kamera aktif. Tekan 'q' untuk keluar.")
 
-    roi     = bgr[y0:y0+roi_size, x0:x0+roi_size].copy()
-    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Gagal membaca frame.")
+            break
 
-    label, r, g, y, valid_mask = classify_roi(hsv_roi)
+        H, W = frame.shape[:2]
+        roi_size = min(ROI_SIZE, H, W)
 
-    print(f"Image size: {W} x {H}")
-    print(f"ROI: x0={x0}, y0={y0}, size={roi_size}")
-    print(f"Result: {label} | R={r:.3f} G={g:.3f} Y={y:.3f}")
+        if USE_CENTER_ROI:
+            x0 = (W - roi_size) // 2
+            y0 = (H - roi_size) // 2
+        else:
+            x0 = max(0, min(W - roi_size, 162))
+            y0 = max(0, min(H - roi_size, 418))
 
-    overlay = bgr.copy()
-    cv2.rectangle(overlay, (x0, y0), (x0+roi_size, y0+roi_size), (0, 255, 0), 4)
+        roi     = frame[y0:y0+roi_size, x0:x0+roi_size]
+        hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-    red_mask    = cv2.inRange(hsv_roi, RED1_LO, RED1_HI) | cv2.inRange(hsv_roi, RED2_LO, RED2_HI)
-    green_mask  = cv2.inRange(hsv_roi, GREEN_LO,  GREEN_HI)
-    yellow_mask = cv2.inRange(hsv_roi, YELLOW_LO, YELLOW_HI)
+        result = classify_roi(hsv_roi)
+        label, r, g, y = result if len(result) == 4 else ("NONE", 0.0, 0.0, 0.0)
 
-    plt.figure(figsize=(14, 8))
-    plt.subplot(2, 3, 1); plt.title("Full + ROI");  plt.imshow(bgr2rgb(overlay)); plt.axis("off")
-    plt.subplot(2, 3, 2); plt.title("ROI");         plt.imshow(bgr2rgb(roi));     plt.axis("off")
-    plt.subplot(2, 3, 3); plt.title("Valid Mask");  plt.imshow(valid_mask,  cmap="gray"); plt.axis("off")
-    plt.subplot(2, 3, 4); plt.title("Red Mask");    plt.imshow(red_mask,    cmap="gray"); plt.axis("off")
-    plt.subplot(2, 3, 5); plt.title("Yellow Mask"); plt.imshow(yellow_mask, cmap="gray"); plt.axis("off")
-    plt.subplot(2, 3, 6); plt.title("Green Mask");  plt.imshow(green_mask,  cmap="gray"); plt.axis("off")
-    plt.tight_layout()
-    plt.show()
+        draw_ui(frame, x0, y0, roi_size, label, r, g, y)
+
+        cv2.imshow("Tomato Classifier - Realtime", frame)
+
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
