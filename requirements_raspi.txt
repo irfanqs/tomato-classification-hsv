@@ -1,0 +1,5 @@
+opencv-python
+numpy
+RPi.GPIO
+RPLCD
+smbus2
