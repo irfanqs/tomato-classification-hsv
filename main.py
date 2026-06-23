@@ -71,7 +71,42 @@ def draw_ui(frame, x0, y0, roi_size, label, r, g, y):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1, cv2.LINE_AA)
 
 
+def check_pinouts():
+    """Melakukan pengecekan kamera sebelum program utama berjalan."""
+    print("\n" + "="*50)
+    print("        DIAGNOSTIC & CAMERA SYSTEM CHECK")
+    print("="*50)
+    
+    all_ok = True
+    
+    # Camera Check
+    cap_test = cv2.VideoCapture(CAMERA_INDEX)
+    if cap_test.isOpened():
+        print(f"[+] Kamera (Index {CAMERA_INDEX})            : OK (Terdeteksi)")
+        cap_test.release()
+    else:
+        print(f"[X] Kamera (Index {CAMERA_INDEX})            : ERROR (TIDAK TERDETEKSI!)")
+        print(f"    --> Solusi: Pastikan kamera sudah dicolokkan ke port USB.")
+        all_ok = False
+        
+    print("="*50)
+    
+    if not all_ok:
+        print("\n" + "!"*50)
+        print("          PENGECEKAN KAMERA GAGAL!")
+        print("!"*50)
+        print("[!] Program dihentikan karena kamera tidak terdeteksi.")
+        print("="*50 + "\n")
+        import sys
+        sys.exit(1)
+                
+    print("KAMERA OK! Menjalankan program utama...")
+    print("="*50 + "\n")
+    return True
+
+
 def main():
+    check_pinouts()
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
         raise RuntimeError(f"Tidak dapat membuka kamera index={CAMERA_INDEX}")

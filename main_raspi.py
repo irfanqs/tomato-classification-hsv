@@ -52,6 +52,156 @@ lcd   = None
 pwm_r = None
 pwm_l = None
 
+def check_pinouts():
+    """Melakukan pengecekan koneksi pinout dan komponen sebelum program utama berjalan."""
+    print("\n" + "="*50)
+    print("        DIAGNOSTIC & PINOUT SYSTEM CHECK")
+    print("="*50)
+    
+    all_ok = True
+    errors = []
+    
+    # 1. Platform Check
+    if IS_RASPI:
+        print("[+] OS / Raspberry Pi Platform  : OK (Raspberry Pi)")
+    else:
+        print("[!] OS / Raspberry Pi Platform  : SIMULATION MODE (Bukan Raspberry Pi)")
+    
+    # 2. Camera Check
+    cap_test = cv2.VideoCapture(CAMERA_INDEX)
+    if cap_test.isOpened():
+        print(f"[+] Kamera (Index {CAMERA_INDEX})            : OK (Terdeteksi)")
+        cap_test.release()
+    else:
+        print(f"[X] Kamera (Index {CAMERA_INDEX})            : ERROR (TIDAK TERDETEKSI!)")
+        errors.append("Kamera tidak terdeteksi. Hubungkan Kamera USB/Pi Camera.")
+        all_ok = False
+        
+    # 3. I2C LCD Check
+    lcd_ok = False
+    if IS_RASPI:
+        try:
+            import smbus2
+            # Coba write_quick ke alamat LCD untuk melihat respon ACK/NACK
+            with smbus2.SMBus(LCD_I2C_PORT) as bus:
+                bus.write_quick(LCD_I2C_ADDR)
+            print(f"[+] I2C LCD (Alamat 0x{LCD_I2C_ADDR:02X})       : OK (Terdeteksi)")
+            lcd_ok = True
+        except ImportError:
+            # Fallback jika smbus2 tidak terpasang, coba inisialisasi RPLCD langsung
+            try:
+                test_lcd = CharLCD(i2c_expander="PCF8574", address=LCD_I2C_ADDR,
+                                   port=LCD_I2C_PORT, cols=16, rows=2, dotsize=8)
+                test_lcd.close()
+                print(f"[+] I2C LCD (Alamat 0x{LCD_I2C_ADDR:02X})       : OK (Terdeteksi via RPLCD)")
+                lcd_ok = True
+            except Exception as e:
+                print(f"[X] I2C LCD (Alamat 0x{LCD_I2C_ADDR:02X})       : ERROR (Gagal init: {e})")
+                errors.append(f"LCD I2C pada alamat 0x{LCD_I2C_ADDR:02X} gagal diinisialisasi.")
+                all_ok = False
+        except Exception as e:
+            print(f"[X] I2C LCD (Alamat 0x{LCD_I2C_ADDR:02X})       : ERROR (TIDAK TERESPON: {e})")
+            errors.append(f"LCD I2C pada alamat 0x{LCD_I2C_ADDR:02X} tidak terdeteksi.")
+            all_ok = False
+    else:
+        print(f"[+] I2C LCD (Alamat 0x{LCD_I2C_ADDR:02X})       : SIMULASI (Terdeteksi)")
+        lcd_ok = True
+
+    # 4. GPIO Servo Setup Check
+    servo_setup_ok = False
+    if IS_RASPI:
+        try:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(PIN_SERVO_RIGHT, GPIO.OUT)
+            GPIO.setup(PIN_SERVO_LEFT,  GPIO.OUT)
+            print(f"[+] GPIO / Pin Servo Kanan ({PIN_SERVO_RIGHT}): OK (Setup Berhasil)")
+            print(f"[+] GPIO / Pin Servo Kiri ({PIN_SERVO_LEFT}) : OK (Setup Berhasil)")
+            servo_setup_ok = True
+        except Exception as e:
+            print(f"[X] GPIO / Pin Servo Setup     : ERROR ({e})")
+            errors.append("Gagal inisialisasi GPIO. Coba jalankan dengan hak akses root/sudo.")
+            all_ok = False
+    else:
+        print(f"[+] GPIO / Pin Servo Kanan ({PIN_SERVO_RIGHT}): SIMULASI (Setup Berhasil)")
+        print(f"[+] GPIO / Pin Servo Kiri ({PIN_SERVO_LEFT}) : SIMULASI (Setup Berhasil)")
+        servo_setup_ok = True
+
+    print("="*50)
+    
+    # Uji Gerak Servo jika setup berhasil
+    if all_ok:
+        if IS_RASPI and servo_setup_ok:
+            print("Melakukan uji gerak servo (Servo Sweep Test)...")
+            try:
+                pwm_r_test = GPIO.PWM(PIN_SERVO_RIGHT, 50)
+                pwm_l_test = GPIO.PWM(PIN_SERVO_LEFT,  50)
+                
+                pwm_r_test.start(DC_NEUTRAL)
+                pwm_l_test.start(DC_NEUTRAL)
+                time.sleep(0.3)
+                
+                print("-> Menguji Servo Kanan (RIPE/MERAH)...")
+                pwm_r_test.ChangeDutyCycle(DC_DEFLECT)
+                time.sleep(0.6)
+                pwm_r_test.ChangeDutyCycle(DC_NEUTRAL)
+                time.sleep(0.3)
+                
+                print("-> Menguji Servo Kiri (SEMI-RIPE/KUNING)...")
+                pwm_l_test.ChangeDutyCycle(DC_DEFLECT)
+                time.sleep(0.6)
+                pwm_l_test.ChangeDutyCycle(DC_NEUTRAL)
+                time.sleep(0.3)
+                
+                pwm_r_test.stop()
+                pwm_l_test.stop()
+                GPIO.cleanup() # Bersihkan agar init_hardware memulai dari awal
+                print("Sweep test selesai.")
+            except Exception as e:
+                print(f"[X] Gagal melakukan uji servo: {e}")
+                errors.append(f"Gagal uji servo: {e}")
+                all_ok = False
+        else:
+            print("[SIMULASI] Uji gerak servo selesai.")
+            
+    # Tampilkan error jika ada
+    if not all_ok:
+        print("\n" + "!"*50)
+        print("          PENGECEKAN PINOUT / HARDWARE GAGAL!")
+        print("!"*50)
+        for i, err in enumerate(errors, 1):
+            print(f"{i}. {err}")
+        print("-"*50)
+        print("Saran perbaikan:")
+        print("- Cek kembali kabel jumper SDA, SCL, VCC, GND pada LCD I2C.")
+        print("- Cek kembali pin sinyal, 5V, dan GND untuk kedua servo.")
+        print("- Pastikan kamera sudah dicolokkan ke port USB / CSI.")
+        print("-"*50)
+        print("[!] Program dihentikan karena komponen tidak lengkap.")
+        print("="*50 + "\n")
+        import sys
+        sys.exit(1)
+                
+    # Sukses, tampilkan di LCD jika tercolok
+    if all_ok and IS_RASPI and lcd_ok:
+        try:
+            # Tulis status ke LCD asli
+            test_lcd = CharLCD(i2c_expander="PCF8574", address=LCD_I2C_ADDR,
+                               port=LCD_I2C_PORT, cols=16, rows=2, dotsize=8)
+            test_lcd.clear()
+            test_lcd.write_string("Pinout: OK")
+            test_lcd.cursor_pos = (1, 0)
+            test_lcd.write_string("System Ready!")
+            time.sleep(1.5)
+            test_lcd.close()
+        except Exception:
+            pass
+
+    print("\n" + "="*50)
+    print("SEMUA KOMPONEN OK! Menjalankan program utama...")
+    print("="*50 + "\n")
+    return True
+
 
 def init_hardware():
     global lcd, pwm_r, pwm_l
@@ -164,6 +314,7 @@ def draw_ui(frame, x0, y0, roi_size, label, r, g, y, status):
 # ===================== MAIN =====================
 
 def main():
+    check_pinouts()
     init_hardware()
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
