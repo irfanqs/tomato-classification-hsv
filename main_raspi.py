@@ -12,7 +12,7 @@ except ImportError:
     print("[SIMULASI] RPi.GPIO / RPLCD tidak ditemukan — servo & LCD dinonaktifkan")
 
 # ===================== CONFIG =====================
-CAMERA_INDEX   = 0
+CAMERA_INDEX   = -1  # -1 = auto-detect, atau isi manual (0/1/2) jika sudah tahu
 ROI_SIZE       = 300
 USE_CENTER_ROI = True
 
@@ -52,6 +52,19 @@ lcd   = None
 pwm_r = None
 pwm_l = None
 
+def find_camera_index(max_index=5):
+    """Cari index kamera yang valid (bisa buka dan baca frame)."""
+    for idx in range(max_index):
+        cap = cv2.VideoCapture(idx)
+        if cap.isOpened():
+            ret, _ = cap.read()
+            cap.release()
+            if ret:
+                return idx
+        cap.release()
+    return -1
+
+
 def check_pinouts():
     """Melakukan pengecekan koneksi pinout dan komponen sebelum program utama berjalan."""
     print("\n" + "="*50)
@@ -68,13 +81,16 @@ def check_pinouts():
         print("[!] OS / Raspberry Pi Platform  : SIMULATION MODE (Bukan Raspberry Pi)")
     
     # 2. Camera Check
-    cap_test = cv2.VideoCapture(CAMERA_INDEX)
-    if cap_test.isOpened():
+    global CAMERA_INDEX
+    if CAMERA_INDEX == -1:
+        print("    Mencari kamera (auto-detect)...")
+        CAMERA_INDEX = find_camera_index()
+
+    if CAMERA_INDEX >= 0:
         print(f"[+] Kamera (Index {CAMERA_INDEX})            : OK (Terdeteksi)")
-        cap_test.release()
     else:
-        print(f"[X] Kamera (Index {CAMERA_INDEX})            : ERROR (TIDAK TERDETEKSI!)")
-        errors.append("Kamera tidak terdeteksi. Hubungkan Kamera USB/Pi Camera.")
+        print(f"[X] Kamera                       : ERROR (TIDAK TERDETEKSI!)")
+        errors.append("Kamera tidak terdeteksi di index manapun (0-4). Hubungkan Kamera USB/Pi Camera.")
         all_ok = False
         
     # 3. I2C LCD Check
