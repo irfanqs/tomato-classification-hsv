@@ -145,14 +145,14 @@ def check_pinouts():
                 pwm_r_test.ChangeDutyCycle(DC_DEFLECT)
                 time.sleep(0.6)
                 pwm_r_test.ChangeDutyCycle(DC_NEUTRAL)
-                time.sleep(0.3)
+                time.sleep(1.0)
                 pwm_r_test.ChangeDutyCycle(0)
 
                 print("-> Menguji Servo Kiri (SEMI-RIPE/KUNING)...")
                 pwm_l_test.ChangeDutyCycle(DC_DEFLECT)
                 time.sleep(0.6)
                 pwm_l_test.ChangeDutyCycle(DC_NEUTRAL)
-                time.sleep(0.3)
+                time.sleep(1.0)
                 pwm_l_test.ChangeDutyCycle(0)
                 
                 pwm_r_test.stop()
@@ -266,8 +266,7 @@ def _servo_deflect(pwm, label_text):
     pwm.ChangeDutyCycle(DC_DEFLECT)
     time.sleep(DEFLECT_SEC)
     pwm.ChangeDutyCycle(DC_NEUTRAL)
-    time.sleep(0.3)
-    # Stop sinyal PWM setelah servo sampai posisi — mencegah jitter software PWM
+    time.sleep(1.0)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
     pwm.ChangeDutyCycle(0)
 
 # ===================== KLASIFIKASI =====================
