@@ -266,7 +266,7 @@ def _servo_deflect(pwm, label_text):
     pwm.ChangeDutyCycle(DC_DEFLECT)
     time.sleep(DEFLECT_SEC)
     pwm.ChangeDutyCycle(DC_NEUTRAL)
-    time.sleep(1.0)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
+    time.sleep(1.5)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
     pwm.ChangeDutyCycle(0)
 
 # ===================== KLASIFIKASI =====================
