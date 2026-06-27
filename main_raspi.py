@@ -56,12 +56,17 @@ def find_camera_index(max_index=5):
     """Cari index kamera yang valid (bisa buka dan baca frame)."""
     for idx in range(max_index):
         cap = cv2.VideoCapture(idx)
-        if cap.isOpened():
-            ret, _ = cap.read()
+        if not cap.isOpened():
             cap.release()
-            if ret:
-                return idx
+            continue
+        # Webcam USB butuh warmup — buang beberapa frame awal
+        time.sleep(0.5)
+        for _ in range(5):
+            cap.read()
+        ret, _ = cap.read()
         cap.release()
+        if ret:
+            return idx
     return -1
 
 
@@ -282,7 +287,7 @@ def _servo_deflect(pwm, label_text):
     pwm.ChangeDutyCycle(DC_DEFLECT)
     time.sleep(DEFLECT_SEC)
     pwm.ChangeDutyCycle(DC_NEUTRAL)
-    time.sleep(1.5)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
+    time.sleep(2.0)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
     pwm.ChangeDutyCycle(0)
 
 # ===================== KLASIFIKASI =====================
@@ -345,6 +350,11 @@ def main():
     if not cap.isOpened():
         cleanup_hardware()
         raise RuntimeError(f"Kamera index={CAMERA_INDEX} tidak bisa dibuka")
+
+    # Warmup webcam USB — buang frame awal yang kosong/corrupt
+    time.sleep(0.5)
+    for _ in range(10):
+        cap.read()
 
     print("Kamera aktif. Tekan 'q' untuk keluar.")
 
