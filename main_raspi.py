@@ -146,12 +146,14 @@ def check_pinouts():
                 time.sleep(0.6)
                 pwm_r_test.ChangeDutyCycle(DC_NEUTRAL)
                 time.sleep(0.3)
-                
+                pwm_r_test.ChangeDutyCycle(0)
+
                 print("-> Menguji Servo Kiri (SEMI-RIPE/KUNING)...")
                 pwm_l_test.ChangeDutyCycle(DC_DEFLECT)
                 time.sleep(0.6)
                 pwm_l_test.ChangeDutyCycle(DC_NEUTRAL)
                 time.sleep(0.3)
+                pwm_l_test.ChangeDutyCycle(0)
                 
                 pwm_r_test.stop()
                 pwm_l_test.stop()
@@ -217,6 +219,10 @@ def init_hardware():
     pwm_l = GPIO.PWM(PIN_SERVO_LEFT,  50)
     pwm_r.start(DC_NEUTRAL)
     pwm_l.start(DC_NEUTRAL)
+    time.sleep(0.5)
+    # Stop sinyal setelah servo ke posisi netral — cegah jitter software PWM
+    pwm_r.ChangeDutyCycle(0)
+    pwm_l.ChangeDutyCycle(0)
 
     try:
         lcd = CharLCD(i2c_expander="PCF8574", address=LCD_I2C_ADDR,
@@ -260,6 +266,9 @@ def _servo_deflect(pwm, label_text):
     pwm.ChangeDutyCycle(DC_DEFLECT)
     time.sleep(DEFLECT_SEC)
     pwm.ChangeDutyCycle(DC_NEUTRAL)
+    time.sleep(0.3)
+    # Stop sinyal PWM setelah servo sampai posisi — mencegah jitter software PWM
+    pwm.ChangeDutyCycle(0)
 
 # ===================== KLASIFIKASI =====================
 
