@@ -12,7 +12,7 @@ except ImportError:
     print("[SIMULASI] RPi.GPIO / RPLCD tidak ditemukan — servo & LCD dinonaktifkan")
 
 # ===================== CONFIG =====================
-CAMERA_INDEX   = -1  # -1 = auto-detect, atau isi manual (0/1/2) jika sudah tahu
+CAMERA_INDEX   = 1   # webcam USB di Raspberry Pi biasanya index 1 (video0 = codec)
 ROI_SIZE       = 300
 USE_CENTER_ROI = True
 
