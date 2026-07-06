@@ -12,7 +12,7 @@ except ImportError:
     print("[SIMULASI] RPi.GPIO / RPLCD tidak ditemukan — servo & LCD dinonaktifkan")
 
 # ===================== CONFIG =====================
-CAMERA_INDEX   = 1   # webcam USB di Raspberry Pi biasanya index 1 (video0 = codec)
+CAMERA_INDEX   = 0   # Logitech C270 ada di /dev/video0 (konfirmasi via v4l2-ctl)
 ROI_SIZE       = 300
 USE_CENTER_ROI = True
 
