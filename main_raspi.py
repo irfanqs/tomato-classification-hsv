@@ -31,8 +31,8 @@ LCD_I2C_PORT = 1        # /dev/i2c-1
 
 # Logika deteksi
 CONFIRM_FRAMES = 5      # jumlah frame konsisten sebelum servo dipicu
-DEFLECT_SEC    = 1.2    # lama servo deflect sebelum kembali netral (detik)
-COOLDOWN_SEC   = 2.5    # jeda minimum antar aksi (detik)
+DEFLECT_SEC    = 0.8    # lama servo deflect sebelum kembali netral (detik)
+COOLDOWN_SEC   = 1.5    # jeda minimum antar aksi (detik)
 
 # ===================== HSV RANGES =====================
 GREEN_LO  = np.array([25,  30,  40]);  GREEN_HI  = np.array([95,  255, 255])
@@ -287,7 +287,7 @@ def _servo_deflect(pwm, label_text):
     pwm.ChangeDutyCycle(DC_DEFLECT)
     time.sleep(DEFLECT_SEC)
     pwm.ChangeDutyCycle(DC_NEUTRAL)
-    time.sleep(2.0)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
+    time.sleep(1.0)  # beri waktu servo bergerak balik ke netral sebelum sinyal dimatikan
     pwm.ChangeDutyCycle(0)
 
 # ===================== KLASIFIKASI =====================
